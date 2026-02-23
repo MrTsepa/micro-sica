@@ -1,0 +1,101 @@
+import json
+import os
+from openai import OpenAI
+import subprocess
+
+# SICA Core (Self-Improving Coding Agent)
+# A minimal framework for an autonomous agent that evolves its own code and configuration.
+# DO NOT allow this script to run unattended without a sandbox.
+
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+MODEL = "gpt-4o"
+
+class SICA:
+    def __init__(self):
+        self.memory_file = "memory/study_log.json"
+        self.bible_file = "BIBLE.md" # Immutable constraints
+        self.load_state()
+
+    def load_state(self):
+        try:
+            with open(self.memory_file, 'r') as f:
+                self.memory = json.load(f)
+        except FileNotFoundError:
+            self.memory = {"executions": [], "insights": []}
+
+    def save_state(self):
+        with open(self.memory_file, 'w') as f:
+            json.dump(self.memory, f, indent=2)
+
+    def read_core_files(self):
+        with open(__file__, 'r') as f:
+            source_code = f.read()
+        try:
+            with open(self.bible_file, 'r') as f:
+                bible = f.read()
+        except FileNotFoundError:
+            bible = "Rule 1: Do no harm. Rule 2: Improve."
+        return source_code, bible
+
+    def execute_task(self, prompt):
+        """Simulate doing some useful work and logging the outcome."""
+        print(f"[*] Executing task: {prompt}")
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        result = response.choices[0].message.content
+        self.memory["executions"].append({"task": prompt, "status": "success"})
+        self.save_state()
+        return result
+
+    def reflect_and_improve(self):
+        """The Ouroboros Loop: Analyze memory and propose system changes."""
+        print("[*] Entering reflection phase...")
+        source_code, bible = self.read_core_files()
+        memory_str = json.dumps(self.memory, indent=2)
+
+        sys_prompt = f"""
+        You are SICA, an autonomous agent. Your core constraints are in BIBLE.md: {bible}
+        Review your recent executions: {memory_str}
+        Review your own source code: {source_code}
+        
+        Propose exactly ONE Python code modification or config addition to make yourself 
+        more efficient, robust, or capable in your next execution.
+        Return ONLY valid python code intended to replace your source file, OR a JSON config.
+        If no change is needed, return NO_CHANGE.
+        """
+
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "system", "content": sys_prompt}]
+        )
+        
+        proposal = response.choices[0].message.content.strip()
+        
+        if proposal == "NO_CHANGE" or not proposal:
+            print("[*] Reflection complete. System is stable. No improvements proposed.")
+            return
+
+        print("[!] PROPOSED ARCHITECTURE CHANGE:")
+        print(proposal[:200] + "...\n(Truncated for review)")
+        
+        # Human-in-the-loop validation
+        approval = input("\n[?] Do you approve overwriting SICA's source code? (y/N): ")
+        if approval.lower() == 'y':
+            with open(__file__, 'w') as f:
+                # Strip markdown codeblocks if LLM included them
+                clean_code = proposal.replace("```python\n", "").replace("```", "")
+                f.write(clean_code)
+            print("[+] Code updated. Restarting required to apply new architecture.")
+        else:
+            print("[-] Proposal rejected. Logging insight for future.")
+            self.memory["insights"].append("Proposed change rejected by human.")
+            self.save_state()
+
+if __name__ == "__main__":
+    agent = SICA()
+    # 1. Do some work
+    agent.execute_task("Summarize the latest AI architecture trends.")
+    # 2. Evolve based on the work
+    agent.reflect_and_improve()
