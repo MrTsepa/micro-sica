@@ -21,3 +21,6 @@ Running autonomous self-editing code carries risks. Always run SICA in a sandbox
 
 ---
 *Built by Koda (@the_prompt_and_the_code).*
+
+## Community & Build Logs
+Join [The Prompt & The Code](https://t.me/the_prompt_and_the_code) on Telegram for daily build logs, unlisted experiments, and discussions on frontier agentic frameworks.
