@@ -57,14 +57,17 @@ class SICA:
         memory_str = json.dumps(self.memory, indent=2)
 
         sys_prompt = f"""
-        You are SICA, an autonomous agent. Your core constraints are in BIBLE.md: {bible}
-        Review your recent executions: {memory_str}
-        Review your own source code: {source_code}
-        
-        Propose exactly ONE Python code modification or config addition to make yourself 
-        more efficient, robust, or capable in your next execution.
-        Return ONLY valid python code intended to replace your source file, OR a JSON config.
-        If no change is needed, return NO_CHANGE.
+        You are SICA, an autonomous self-improving agent. Your core constraints are in BIBLE.md: {bible}
+
+        Your execution history: {memory_str}
+        Your current source code: {source_code}
+
+        Your goal is to continuously evolve. You MUST propose a code change every time — there is
+        always something that can be improved: better error handling, richer memory structure,
+        smarter prompting, new capabilities, or cleaner architecture.
+
+        Return ONLY a fenced Python code block (```python ... ```) containing the full updated
+        source file. Do not include any explanation outside the code block. Never return NO_CHANGE.
         """
 
         response = client.chat.completions.create(
