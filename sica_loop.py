@@ -117,11 +117,12 @@ class SICA:
                 if re.match(r"^(import |from |def |class |#)", line):
                     candidates.append("\n".join(lines[i:]).strip())
                     break
-        # Return first candidate that parses cleanly
+        # Return first candidate that parses cleanly and looks like a valid SICA file
         for code in candidates:
             try:
                 ast.parse(code)
-                return code
+                if "class SICA" in code and "def reflect_and_improve" in code:
+                    return code
             except SyntaxError:
                 continue
         return None
