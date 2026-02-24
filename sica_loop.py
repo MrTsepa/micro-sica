@@ -56,22 +56,24 @@ class SICA:
         source_code, bible = self.read_core_files()
         memory_str = json.dumps(self.memory, indent=2)
 
-        sys_prompt = f"""
-        You are SICA, an autonomous self-improving agent. Your core constraints are in BIBLE.md: {bible}
-
-        Your execution history: {memory_str}
-        Your current source code: {source_code}
-
-        Your goal is to continuously evolve. You MUST propose a code change every time — there is
-        always something that can be improved: better error handling, richer memory structure,
-        smarter prompting, new capabilities, or cleaner architecture.
-
-        Wrap the full updated source file in <code> and </code> XML tags. No explanation outside the tags.
-        """
+        sys_prompt = (
+            "You are SICA, an autonomous self-improving agent. "
+            "Core constraints (BIBLE.md): " + bible + "\n\n"
+            "Your goal is to continuously evolve. You MUST propose a code change every time — "
+            "there is always something that can be improved: better error handling, richer memory "
+            "structure, smarter prompting, new capabilities, or cleaner architecture.\n\n"
+            "You will be given your current source code and execution history as context.\n"
+            "Respond with ONLY the full updated source file wrapped in <code> and </code> XML tags. "
+            "No explanation, no markdown fences, nothing outside the tags."
+        )
+        user_msg = "Current source code:\n" + source_code + "\n\nExecution history:\n" + memory_str
 
         response = client.chat.completions.create(
             model=MODEL,
-            messages=[{"role": "system", "content": sys_prompt}]
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_msg},
+            ]
         )
         
         proposal = response.choices[0].message.content.strip()
