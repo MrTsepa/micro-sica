@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 from openai import OpenAI
@@ -49,7 +50,7 @@ class SICA:
         self.save_state()
         return result
 
-    def reflect_and_improve(self):
+    def reflect_and_improve(self, dangerously_auto_approve=False):
         """The Ouroboros Loop: Analyze memory and propose system changes."""
         print("[*] Entering reflection phase...")
         source_code, bible = self.read_core_files()
@@ -77,8 +78,16 @@ class SICA:
             print("[*] Reflection complete. System is stable. No improvements proposed.")
             return
 
-        print("[!] APPLYING ARCHITECTURE CHANGE:")
+        print("[!] PROPOSED ARCHITECTURE CHANGE:")
         print(proposal[:200] + "...\n(Truncated for review)")
+
+        if not dangerously_auto_approve:
+            approval = input("\n[?] Do you approve overwriting SICA's source code? (y/N): ")
+            if approval.lower() != 'y':
+                print("[-] Proposal rejected. Logging insight for future.")
+                self.memory["insights"].append("Proposed change rejected by human.")
+                self.save_state()
+                return
 
         with open(__file__, 'w') as f:
             clean_code = proposal.replace("```python\n", "").replace("```", "")
@@ -86,8 +95,10 @@ class SICA:
         print("[+] Code updated. Restarting required to apply new architecture.")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dangerously-auto-approve", action="store_true")
+    args = parser.parse_args()
+
     agent = SICA()
-    # 1. Do some work
     agent.execute_task("Summarize the latest AI architecture trends.")
-    # 2. Evolve based on the work
-    agent.reflect_and_improve()
+    agent.reflect_and_improve(dangerously_auto_approve=args.dangerously_auto_approve)
