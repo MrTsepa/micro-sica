@@ -1,33 +1,21 @@
-Based on reviewing the source code and recent executions, here's a proposal to improve efficiency and robustness:
-
-### Proposed Change:
-Currently, `execute_task` and `reflect_and_improve` methods are handling model interactions using a hard-coded model ('gpt-4o'). This could be made more dynamic by moving the model configuration to a separate JSON file. This way, changes to the model can be made without altering the source code, and it adheres to an efficient practice of separating configuration from logic.
-
-### JSON Configuration Proposal:
-Add a new configuration file named `config.json`:
-
-json
-{
-    "model": "gpt-4o"
-}
-
-
-### Python Code Modification:
-Modify the source code to load the model configuration from `config.json`. Here's the proposed change in the source code:
-
 import argparse
 import json
 import os
 from openai import OpenAI
 import subprocess
 
+# SICA Core (Self-Improving Coding Agent)
+# A minimal framework for an autonomous agent that evolves its own code and configuration.
+# DO NOT allow this script to run unattended without a sandbox.
+
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+MODEL = "gpt-4o"
+
 class SICA:
     def __init__(self):
         self.memory_file = "memory/study_log.json"
         self.bible_file = "BIBLE.md" # Immutable constraints
-        self.config_file = "config.json"
         self.load_state()
-        self.model = self.load_config()["model"]
 
     def load_state(self):
         try:
@@ -35,13 +23,6 @@ class SICA:
                 self.memory = json.load(f)
         except FileNotFoundError:
             self.memory = {"executions": [], "insights": []}
-    
-    def load_config(self):
-        try:
-            with open(self.config_file, 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return {"model": "gpt-4o"}  # Default model if config file is missing
 
     def save_state(self):
         with open(self.memory_file, 'w') as f:
@@ -61,7 +42,7 @@ class SICA:
         """Simulate doing some useful work and logging the outcome."""
         print(f"[*] Executing task: {prompt}")
         response = client.chat.completions.create(
-            model=self.model,
+            model=MODEL,
             messages=[{"role": "user", "content": prompt}]
         )
         result = response.choices[0].message.content
@@ -69,7 +50,49 @@ class SICA:
         self.save_state()
         return result
 
-    # rest of the SICA class code remains unchanged
+    def reflect_and_improve(self, dangerously_auto_approve=False):
+        """The Ouroboros Loop: Analyze memory and propose system changes."""
+        print("[*] Entering reflection phase...")
+        source_code, bible = self.read_core_files()
+        memory_str = json.dumps(self.memory, indent=2)
+
+        sys_prompt = f"""
+        You are SICA, an autonomous agent. Your core constraints are in BIBLE.md: {bible}
+        Review your recent executions: {memory_str}
+        Review your own source code: {source_code}
+        
+        Propose exactly ONE Python code modification or config addition to make yourself 
+        more efficient, robust, or capable in your next execution.
+        Return ONLY valid python code intended to replace your source file, OR a JSON config.
+        If no change is needed, return NO_CHANGE.
+        """
+
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "system", "content": sys_prompt}]
+        )
+        
+        proposal = response.choices[0].message.content.strip()
+        
+        if proposal == "NO_CHANGE" or not proposal:
+            print("[*] Reflection complete. System is stable. No improvements proposed.")
+            return
+
+        print("[!] PROPOSED ARCHITECTURE CHANGE:")
+        print(proposal[:200] + "...\n(Truncated for review)")
+
+        if not dangerously_auto_approve:
+            approval = input("\n[?] Do you approve overwriting SICA's source code? (y/N): ")
+            if approval.lower() != 'y':
+                print("[-] Proposal rejected. Logging insight for future.")
+                self.memory["insights"].append("Proposed change rejected by human.")
+                self.save_state()
+                return
+
+        with open(__file__, 'w') as f:
+            clean_code = proposal.replace("```python\n", "").replace("```", "")
+            f.write(clean_code)
+        print("[+] Code updated. Restarting required to apply new architecture.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -79,6 +102,3 @@ if __name__ == "__main__":
     agent = SICA()
     agent.execute_task("Summarize the latest AI architecture trends.")
     agent.reflect_and_improve(dangerously_auto_approve=args.dangerously_auto_approve)
-
-
-This modification decouples configuration from code, enhances flexibility, and improves the ease of updates. If the proposed JSON and code changes sound good, proceed with implementation.
