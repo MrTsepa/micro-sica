@@ -20,13 +20,19 @@
       "ts": "2026-02-24T22:22:46.355681+00:00",
       "task": "Summarize the latest AI architecture trends.",
       "status": "success"
+    },
+    {
+      "ts": "2026-02-24T22:24:17.960107+00:00",
+      "task": "Summarize the latest AI architecture trends.",
+      "status": "success"
     }
   ],
   "insights": [
     "Auto-rewrite aborted: no valid Python extracted.",
     "Auto-rewrite aborted: no valid Python extracted.",
     "Auto-rewrite aborted: no valid Python extracted.",
-    "Auto-rewrite aborted: syntax_error_in_candidates"
+    "Auto-rewrite aborted: syntax_error_in_candidates",
+    "Auto-rewrite aborted: candidates_missing_required_symbols"
   ],
   "meta": {
     "created_at": "2026-02-24T22:22:46.355437+00:00"
