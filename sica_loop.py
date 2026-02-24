@@ -9,7 +9,7 @@ import subprocess
 # DO NOT allow this script to run unattended without a sandbox.
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-MODEL = "gpt-4o"
+MODEL = "gpt-5.2"
 
 class SICA:
     def __init__(self):
