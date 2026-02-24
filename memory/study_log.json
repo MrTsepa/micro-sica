@@ -3,7 +3,44 @@
     {
       "task": "Summarize the latest AI architecture trends.",
       "status": "success"
+    },
+    {
+      "ts": "2026-02-24T22:30:52.349947+00:00",
+      "task": "Summarize the latest AI architecture trends.",
+      "status": "success",
+      "latency_s": 11.976
     }
   ],
-  "insights": []
+  "insights": [],
+  "actions": [
+    {
+      "ts": "2026-02-24T22:30:52.349963+00:00",
+      "kind": "execute_task",
+      "status": "success",
+      "details": {
+        "task": "Summarize the latest AI architecture trends.",
+        "model": "gpt-5.2",
+        "latency_s": 11.976
+      }
+    },
+    {
+      "ts": "2026-02-24T22:31:19.181087+00:00",
+      "kind": "reflect_and_improve",
+      "status": "success",
+      "details": {
+        "model": "gpt-5.2",
+        "latency_s": 26.83,
+        "proposal_len": 13635
+      }
+    },
+    {
+      "ts": "2026-02-24T22:31:19.223765+00:00",
+      "kind": "apply_proposal",
+      "status": "success",
+      "details": {
+        "approved": true,
+        "written": true
+      }
+    }
+  ]
 }

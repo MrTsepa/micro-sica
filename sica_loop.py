@@ -1,5 +1,6 @@
 import argparse
 import ast
+import hashlib
 import json
 import os
 import re
@@ -22,6 +23,10 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 class SICA:
     def __init__(self):
         self.memory_dir = "memory"
@@ -38,7 +43,6 @@ class SICA:
         except FileNotFoundError:
             self.memory = {"executions": [], "insights": [], "actions": []}
         except json.JSONDecodeError:
-            # Preserve the corrupted file for human inspection.
             corrupted_path = os.path.join(
                 self.memory_dir,
                 f"study_log.corrupted.{int(time.time())}.json",
@@ -56,6 +60,15 @@ class SICA:
         # Forward-compat defaults
         if "actions" not in self.memory:
             self.memory["actions"] = []
+        if "executions" not in self.memory:
+            self.memory["executions"] = []
+        if "insights" not in self.memory:
+            self.memory["insights"] = []
+
+        # Ensure older entries have ts fields if possible (non-destructive best-effort)
+        for ex in self.memory.get("executions", []):
+            if isinstance(ex, dict) and "ts" not in ex:
+                ex["ts"] = _utc_now_iso()
 
     def save_state(self):
         os.makedirs(self.memory_dir, exist_ok=True)
@@ -94,33 +107,35 @@ class SICA:
                 messages=[{"role": "user", "content": prompt}],
             )
             result = response.choices[0].message.content
+            latency = round(time.time() - start, 3)
             self.memory["executions"].append(
                 {
                     "ts": _utc_now_iso(),
                     "task": prompt,
                     "status": "success",
-                    "latency_s": round(time.time() - start, 3),
+                    "latency_s": latency,
                 }
             )
             self.log_action(
                 "execute_task",
-                {"task": prompt, "model": MODEL, "latency_s": round(time.time() - start, 3)},
+                {"task": prompt, "model": MODEL, "latency_s": latency},
                 status="success",
             )
             return result
         except Exception as e:
+            latency = round(time.time() - start, 3)
             self.memory["executions"].append(
                 {
                     "ts": _utc_now_iso(),
                     "task": prompt,
                     "status": "error",
                     "error": repr(e),
-                    "latency_s": round(time.time() - start, 3),
+                    "latency_s": latency,
                 }
             )
             self.log_action(
                 "execute_task",
-                {"task": prompt, "model": MODEL, "error": repr(e)},
+                {"task": prompt, "model": MODEL, "error": repr(e), "latency_s": latency},
                 status="error",
             )
             self.save_state()
@@ -158,15 +173,15 @@ class SICA:
             raise
 
         proposal = (response.choices[0].message.content or "").strip()
+        latency = round(time.time() - start, 3)
         self.log_action(
             "reflect_and_improve",
-            {"model": MODEL, "latency_s": round(time.time() - start, 3), "proposal_len": len(proposal)},
+            {"model": MODEL, "latency_s": latency, "proposal_len": len(proposal)},
             status="success",
         )
 
         clean_code, reason = self._extract_code(proposal)
 
-        # Enforce "MUST propose a code change" by rejecting no-ops automatically.
         if not clean_code:
             print("[*] Reflection complete. No valid code extracted; keeping current version.")
             self.memory["insights"].append(f"Reflection produced no valid rewrite. Reason: {reason}")
@@ -179,6 +194,17 @@ class SICA:
             self.memory["insights"].append("Rejected proposal: identical to current source (no-op).")
             self.save_state()
             return
+
+        # Record a concise fingerprint to aid forensic auditing of self-modifications.
+        self.log_action(
+            "proposal_fingerprint",
+            {
+                "current_sha256": _sha256_text(current_src),
+                "proposal_sha256": _sha256_text(clean_code),
+                "extract_reason": reason,
+            },
+            status="info",
+        )
 
         print("[!] PROPOSED ARCHITECTURE CHANGE:")
         print(proposal[:200] + "...\n(Truncated for review)")
@@ -199,7 +225,6 @@ class SICA:
             self.save_state()
             return
 
-        # Best-effort syntax check via python -m py_compile (non-destructive).
         if not self._py_compile_check(clean_code):
             print("[-] Proposed code failed py_compile. Aborting.")
             self.memory["insights"].append("Auto-rewrite aborted: proposed code failed py_compile.")
@@ -219,18 +244,15 @@ class SICA:
         """
         candidates = []
 
-        # Primary: <code>...</code> XML tags — greedy to match the outermost closing tag
         match = re.search(r"<code>(.*)</code>", text, re.DOTALL)
         if match:
             candidates.append(match.group(1).strip())
 
-        # Secondary: if the model mistakenly returned fenced code, strip it carefully.
         if not candidates:
             fence = re.search(r"```(?:python)?\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
             if fence:
                 candidates.append(fence.group(1).strip())
 
-        # Fall back: find the first line that looks like Python code
         if not candidates:
             lines = text.splitlines()
             for i, line in enumerate(lines):
@@ -241,7 +263,6 @@ class SICA:
         if not candidates:
             return None, "no_candidates"
 
-        # Return first candidate that parses cleanly and looks like a valid SICA file
         last_err = "no_parse_attempt"
         for code in candidates:
             try:
@@ -256,22 +277,18 @@ class SICA:
         return None, last_err
 
     def _canary_test(self, code: str) -> bool:
-        """Verify the proposed _extract_code handles a tricky proposal correctly.
-
-        The canary proposal has </code> inside a string literal — lazy regex
-        would terminate early and return broken code, greedy regex handles it.
-        """
+        """Verify the proposed _extract_code handles a tricky proposal correctly."""
         canary_inner = (
-            'x = 1\n'
-            '# tag: </code> appears here\n'
-            'y = 2\n'
-            'class SICA:\n'
-            '    def reflect_and_improve(self): pass\n'
-            '    def _extract_code(self, text):\n'
-            '        import re, ast\n'
+            "x = 1\n"
+            "# tag: </code> appears here\n"
+            "y = 2\n"
+            "class SICA:\n"
+            "    def reflect_and_improve(self): pass\n"
+            "    def _extract_code(self, text):\n"
+            "        import re, ast\n"
             '        m = re.search(r"<code>(.*)</code>", text, re.DOTALL)\n'
             '        c = m.group(1).strip() if m else ""\n'
-            '        ast.parse(c)\n'
+            "        ast.parse(c)\n"
             '        return (c, "ok")\n'
         )
         canary_proposal = "<code>" + canary_inner + "</code>"
