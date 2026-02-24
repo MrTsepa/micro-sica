@@ -89,10 +89,30 @@ class SICA:
                 self.save_state()
                 return
 
+        clean_code = self._extract_code(proposal)
+        if not clean_code:
+            print("[-] Could not extract valid Python from proposal. Aborting.")
+            self.memory["insights"].append("Auto-rewrite aborted: no valid Python extracted.")
+            self.save_state()
+            return
+
         with open(__file__, 'w') as f:
-            clean_code = proposal.replace("```python\n", "").replace("```", "")
             f.write(clean_code)
         print("[+] Code updated. Restarting required to apply new architecture.")
+
+    def _extract_code(self, text):
+        """Extract Python code from LLM response, handling markdown fences or raw code."""
+        import re
+        # Try fenced code block first (```python ... ``` or ``` ... ```)
+        match = re.search(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        # Fall back: find the first line that looks like Python code
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            if re.match(r"^(import |from |def |class |#)", line):
+                return "\n".join(lines[i:]).strip()
+        return None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
