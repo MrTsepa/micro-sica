@@ -100,6 +100,12 @@ class SICA:
             self.save_state()
             return
 
+        if not self._canary_test(clean_code):
+            print("[-] Proposed _extract_code failed canary test. Aborting.")
+            self.memory["insights"].append("Auto-rewrite aborted: _extract_code regression detected.")
+            self.save_state()
+            return
+
         with open(__file__, 'w') as f:
             f.write(clean_code)
         print("[+] Code updated. Restarting required to apply new architecture.")
@@ -129,6 +135,28 @@ class SICA:
             except SyntaxError:
                 continue
         return None
+
+    def _canary_test(self, code):
+        """Verify the proposed _extract_code handles a tricky proposal correctly.
+
+        The canary proposal has </code> inside a string literal — lazy regex
+        would terminate early and return broken code, greedy regex handles it.
+        """
+        canary_inner = 'x = 1\n# tag: </code> appears here\ny = 2\nclass SICA:\n    def reflect_and_improve(self): pass\n'
+        canary_proposal = "<code>" + canary_inner + "</code>"
+        try:
+            namespace = {}
+            exec(compile(code, "<canary>", "exec"), namespace)
+            sica_cls = namespace.get("SICA")
+            if not sica_cls:
+                return False
+            instance = object.__new__(sica_cls)
+            result = sica_cls._extract_code(instance, canary_proposal)
+            # Accept both plain string and (code, reason) tuple returns
+            extracted = result[0] if isinstance(result, tuple) else result
+            return extracted is not None and "class SICA" in extracted
+        except Exception:
+            return False
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
