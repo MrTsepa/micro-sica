@@ -66,8 +66,7 @@ class SICA:
         always something that can be improved: better error handling, richer memory structure,
         smarter prompting, new capabilities, or cleaner architecture.
 
-        Return ONLY a fenced Python code block (```python ... ```) containing the full updated
-        source file. Do not include any explanation outside the code block. Never return NO_CHANGE.
+        Wrap the full updated source file in <code> and </code> XML tags. No explanation outside the tags.
         """
 
         response = client.chat.completions.create(
@@ -104,12 +103,12 @@ class SICA:
         print("[+] Code updated. Restarting required to apply new architecture.")
 
     def _extract_code(self, text):
-        """Extract Python code from LLM response, handling markdown fences or raw code."""
+        """Extract Python code from LLM response, handling XML tags or raw code."""
         import ast
         import re
         candidates = []
-        # Collect all fenced code blocks
-        for match in re.finditer(r"```(?:python)?\n(.*?)```", text, re.DOTALL):
+        # Primary: <code>...</code> XML tags
+        for match in re.finditer(r"<code>(.*?)</code>", text, re.DOTALL):
             candidates.append(match.group(1).strip())
         # Fall back: find the first line that looks like Python code
         if not candidates:
