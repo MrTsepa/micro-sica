@@ -109,8 +109,9 @@ class SICA:
         import ast
         import re
         candidates = []
-        # Primary: <code>...</code> XML tags
-        for match in re.finditer(r"<code>(.*?)</code>", text, re.DOTALL):
+        # Primary: <code>...</code> XML tags — greedy to match the outermost closing tag
+        match = re.search(r"<code>(.*)</code>", text, re.DOTALL)
+        if match:
             candidates.append(match.group(1).strip())
         # Fall back: find the first line that looks like Python code
         if not candidates:
